@@ -1,0 +1,130 @@
+{
+  "version": 4,
+  "configurations": [
+    {
+      "name": "Linux POSIX",
+      "compilerPath": "/usr/bin/g++",
+      "intelliSenseMode": "linux-gcc-x64",
+      "cStandard": "c99",
+      "cppStandard": "c++20",
+      "defines": [
+        "XYZM_HAVE_POSIX=1"
+      ],
+      "compilerArgs": [
+        "-pthread"
+      ],
+      "includePath": [
+        "${workspaceFolder}/include",
+        "${workspaceFolder}",
+        "${workspaceFolder}/tests",
+        "${workspaceFolder}/samples/support",
+        "${workspaceFolder}/deps/cardio/include"
+      ],
+      "browse": {
+        "path": [
+          "${workspaceFolder}/include",
+          "${workspaceFolder}/src",
+          "${workspaceFolder}/tests",
+          "${workspaceFolder}/samples",
+          "${workspaceFolder}/../libbounce/include"
+        ],
+        "limitSymbolsToIncludedHeaders": true
+      }
+    },
+    {
+      "name": "Linux POSIX-GLib",
+      "compilerPath": "/usr/bin/g++",
+      "intelliSenseMode": "linux-gcc-x64",
+      "cStandard": "c99",
+      "cppStandard": "c++20",
+      "defines": [
+        "XYZM_HAVE_POSIX=1"
+      ],
+      "compilerArgs": [
+        "-pthread"
+      ],
+      "includePath": [
+        "${workspaceFolder}/include",
+        "${workspaceFolder}",
+        "${workspaceFolder}/tests",
+        "${workspaceFolder}/samples/support",
+        "${workspaceFolder}/deps/cardio/include",
+        "/usr/include/glib-2.0",
+        "/usr/lib/x86_64-linux-gnu/glib-2.0/include",
+        "/usr/include/gio-unix-2.0",
+        "/usr/include/libmount",
+        "/usr/include/blkid"
+      ],
+      "browse": {
+        "path": [
+          "${workspaceFolder}/include",
+          "${workspaceFolder}/src",
+          "${workspaceFolder}/tests",
+          "${workspaceFolder}/samples",
+          "${workspaceFolder}/deps/cardio/include",
+          "/usr/include/glib-2.0",
+          "/usr/lib/x86_64-linux-gnu/glib-2.0/include",
+          "/usr/include/gio-unix-2.0",
+          "/usr/include/libmount",
+          "/usr/include/blkid"
+        ],
+        "limitSymbolsToIncludedHeaders": true
+      }
+    },
+    {
+      "name": "Win32 x64 (MinGW)",
+      "compilerPath": "/usr/bin/x86_64-w64-mingw32-g++",
+      "intelliSenseMode": "windows-gcc-x64",
+      "cStandard": "c99",
+      "cppStandard": "c++20",
+      "defines": [
+        "_WIN32",
+        "_WIN64",
+        "XYZM_HAVE_WIN32=1"
+      ],
+      "includePath": [
+        "${workspaceFolder}/include",
+        "${workspaceFolder}",
+        "${workspaceFolder}/tests",
+        "${workspaceFolder}/deps/cardio/include"
+      ],
+      "browse": {
+        "path": [
+          "${workspaceFolder}/include",
+          "${workspaceFolder}/src",
+          "${workspaceFolder}/tests",
+          "${workspaceFolder}/samples",
+          "${workspaceFolder}/deps/cardio/include"
+        ],
+        "limitSymbolsToIncludedHeaders": true
+      }
+    },
+    {
+      "name": "Win32 x86 (MinGW)",
+      "compilerPath": "/usr/bin/i686-w64-mingw32-g++",
+      "intelliSenseMode": "windows-gcc-x86",
+      "cStandard": "c99",
+      "cppStandard": "c++20",
+      "defines": [
+        "_WIN32",
+        "XYZM_HAVE_WIN32=1"
+      ],
+      "includePath": [
+        "${workspaceFolder}/include",
+        "${workspaceFolder}",
+        "${workspaceFolder}/tests",
+        "${workspaceFolder}/deps/cardio/include"
+      ],
+      "browse": {
+        "path": [
+          "${workspaceFolder}/include",
+          "${workspaceFolder}/src",
+          "${workspaceFolder}/tests",
+          "${workspaceFolder}/samples",
+          "${workspaceFolder}/deps/cardio/include"
+        ],
+        "limitSymbolsToIncludedHeaders": true
+      }
+    }
+  ]
+}
