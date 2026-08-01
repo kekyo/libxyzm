@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <optional>
 #include <vector>
 
 static std::size_t count_ymodem_terminal_header_frames(
@@ -320,6 +321,21 @@ static void test_async_timeout_error_uses_exception(void) {
   ASYNC_ASSERT_TRUE(!report.final_result.has_value());
 }
 
+static void test_async_timeout_source_survives_dispatcher_teardown(void) {
+  auto timeout_source = std::optional<cardio::cancellation_source>{};
+
+  {
+    cardio::dispatcher_host dispatcher;
+    timeout_source.emplace(cardio::cancellations::timeout(60000u));
+  }
+
+  ASYNC_ASSERT_TRUE(timeout_source->cancel());
+  ASYNC_ASSERT_TRUE(
+      timeout_source->get_cancellation().is_cancellation_requested());
+  timeout_source.reset();
+  ASYNC_ASSERT_TRUE(!timeout_source.has_value());
+}
+
 extern const test_async_case_t xyzm_async_core_tests[] = {
   ASYNC_TEST_CASE(test_async_xmodem_send_direct, "Asynchronous XMODEM send calls the async public API directly."),
   ASYNC_TEST_CASE(test_async_xmodem_receive_direct, "Asynchronous XMODEM receive calls the async public API directly."),
@@ -329,6 +345,7 @@ extern const test_async_case_t xyzm_async_core_tests[] = {
   ASYNC_TEST_CASE(test_async_recv_byte_uses_cached_data_with_zero_timeout, "Asynchronous byte receive consumes cached data before a zero-timeout poll fails."),
   ASYNC_TEST_CASE(test_async_argument_error_uses_exception, "Asynchronous argument failures are reported as typed exceptions."),
   ASYNC_TEST_CASE(test_async_timeout_error_uses_exception, "Asynchronous timeout failures are reported as typed exceptions."),
+  ASYNC_TEST_CASE(test_async_timeout_source_survives_dispatcher_teardown, "Asynchronous timeout cancellation remains safe after dispatcher teardown."),
 };
 
 extern const std::size_t xyzm_async_core_tests_count =

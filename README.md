@@ -51,7 +51,7 @@ and use it.
 
 - `include/libxyzm/`: public headers owned by libxyzm
 - `src/`: protocol core and synchronous API implementation
-- `deps/cardio/`: cardio 0.2.0 submodule used by the asynchronous API
+- `deps/cardio/`: cardio 1.0.0 submodule used by the asynchronous API
 - `tests/`: unit tests and integration tests for the library
 - `samples/`: standalone synchronous sample programs and sample-only POSIX glue
 
