@@ -42,7 +42,7 @@ libxyzmは、様々な環境で使用できるように、ポータブル性を�
 
 - `include/libxyzm/`: libxyzm が所有する公開ヘッダー
 - `src/`: プロトコルコアと同期 API 実装
-- `deps/cardio/`: 非同期 API が使用する cardio 0.2.0 submodule
+- `deps/cardio/`: 非同期 API が使用する cardio 1.0.0 submodule
 - `tests/`: ライブラリの unit test と integration test
 - `samples/`: スタンドアロンの同期サンプルプログラムとサンプル専用 POSIX glue
 
