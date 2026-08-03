@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          submodules: recursive
+
+      - name: Enable 32-bit packages
+        run: sudo dpkg --add-architecture i386
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            build-essential \
+            g++-mingw-w64-i686 \
+            g++-mingw-w64-x86-64 \
+            liburing-dev \
+            nodejs \
+            pkg-config \
+            wine \
+            wine32:i386 \
+            wine64 \
+            xvfb
+
+      - name: Verify dependencies
+        run: |
+          gcc --version
+          g++ --version
+          i686-w64-mingw32-gcc --version
+          i686-w64-mingw32-g++ --version
+          x86_64-w64-mingw32-gcc --version
+          x86_64-w64-mingw32-g++ --version
+          node --version
+          wine --version
+          pkg-config --exists liburing
+
+      - name: Build and test
+        run: xvfb-run --auto-servernum ./build.sh
