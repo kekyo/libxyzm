@@ -34,6 +34,7 @@ jobs:
             g++-mingw-w64-i686 \
             g++-mingw-w64-x86-64 \
             liburing-dev \
+            lrzsz \
             nodejs \
             pkg-config \
             wine \
@@ -52,6 +53,12 @@ jobs:
           node --version
           wine --version
           pkg-config --exists liburing
+          rx --version
+          sx --version
+          rb --version
+          sb --version
+          rz --version
+          sz --version
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
@@ -67,3 +74,6 @@ jobs:
 
       - name: Analyze with CodeQL
         uses: github/codeql-action/analyze@v4
+        with:
+          upload: never
+          upload-database: false
