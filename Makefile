@@ -226,6 +226,7 @@ test: $(LIBXYZM_STATIC) $(LIBXYZM_SHARED) $(LIBXYZM_ASYNC_STATIC) $(LIBXYZM_ASYN
 	./$(HEADER_SMOKE_ASYNC)
 	./$(LIBXYZM_ASYNC_TEST_MAIN)
 	$(NODE) tests/check_test_coupling.cjs
+	$(NODE) tests/check_build_parallelism.cjs
 	$(NODE) tests/check_link_scope.cjs ./$(LINK_SCOPE_SYNC_ZMODEM_SEND) sync-zmodem-send
 	$(NODE) tests/check_link_scope.cjs ./$(LIBXYZM_SYNC_TEST_MAIN) sync-tests
 	$(NODE) tests/check_link_scope.cjs ./$(LIBXYZM_ASYNC_TEST_MAIN) async-tests

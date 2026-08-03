@@ -58,8 +58,11 @@ jobs:
         with:
           languages: c-cpp
           build-mode: manual
+          ram: "4096"
 
       - name: Build and test
+        env:
+          LIBXYZM_BUILD_JOBS: "2"
         run: xvfb-run --auto-servernum ./build.sh
 
       - name: Analyze with CodeQL
