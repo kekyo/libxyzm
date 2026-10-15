@@ -706,6 +706,10 @@ xyzm_async_link_ops_t make_async_link(app_async_link_state &state) {
 
 非同期APIのリクエスト、オプション、callback table、reportは、返された `cardio::promise<T>` が完了するまで生存している必要があります。
 
+送受信中に通信路から先読みした未消費のバイトは、`xyzm_async_transfer_report_t::unread_bytes`に返します。転送終了の通知前に格納されるため、通知内でも転送の完了後でも参照できます。成功・失敗・取消のいずれでも返し、次の転送の開始時に空にします。例外が発生した場合も、渡したreportから取り出せます。
+
+転送後も通信路を使う場合は、新しいデータを読む前に未消費のバイトを処理してください。失敗時には転送プロトコルのデータも含まれ得るため、通常の本文として扱うかはアプリケーションで判断します。reportを省略すると、このデータは取得できません。
+
 ```cpp
 cardio::promise<xyzm_async_transfer_report_t> run_zmodem_send_async(
     xyzm_async_link_ops_t &link,

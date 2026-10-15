@@ -22,6 +22,7 @@
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 /**
  * @file
@@ -132,6 +133,14 @@ struct xyzm_async_transfer_report_t {
   uint64_t payload_bytes;                           /**< Successfully transferred payload bytes, excluding framing. */
   uint32_t completed_files;                         /**< Number of files completed successfully. */
   uint32_t retry_count;                             /**< Number of protocol retries performed. */
+  /**
+   * Bytes read from the transport but not consumed by the protocol.
+   * @remarks Populated on success, failure, and cancellation before the terminal
+   *          transfer notification. The caller owns the bytes and must process
+   *          them before reading further transport data. Empty when initialized.
+   *          On failure the bytes can still belong to the failed transfer.
+   */
+  std::vector<uint8_t> unread_bytes;
 };
 
 /**
