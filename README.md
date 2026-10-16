@@ -735,6 +735,16 @@ xyzm_async_link_ops_t make_async_link(app_async_link_state &state) {
 For the asynchronous API, the request, options, callback tables, and report must
 remain alive until the returned `cardio::promise<T>` completes.
 
+Bytes read ahead from the transport but left unconsumed are returned in
+`xyzm_async_transfer_report_t::unread_bytes`. They are available before the
+terminal transfer notification and remain owned by the report after completion.
+This applies to success, failure, and cancellation; starting another transfer
+clears the field. If an exception is thrown, inspect the report passed to the API.
+
+Before reading more data from a reused transport, process these bytes first.
+On failure they may still contain protocol data, so the application decides
+whether to treat them as normal text. Omitting the report discards this data.
+
 ```cpp
 cardio::promise<xyzm_async_transfer_report_t> run_zmodem_send_async(
     xyzm_async_link_ops_t &link,

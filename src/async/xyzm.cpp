@@ -115,6 +115,7 @@ void xyzm_report_init_async(xyzm_async_transfer_report_t *report) {
   report->payload_bytes = 0u;
   report->completed_files = 0u;
   report->retry_count = 0u;
+  report->unread_bytes.clear();
 }
 
 void xyzm_report_retry_async(xyzm_async_runtime_t &runtime) {
@@ -230,6 +231,9 @@ void xyzm_notify_file_finished_async(
 void xyzm_finish_transfer_success_async(xyzm_async_runtime_t &runtime) {
   if (runtime.report != NULL) {
     runtime.report->final_result = xyzm_async_status_t::ok;
+    runtime.report->unread_bytes.assign(
+        runtime.recv_cache.begin() + runtime.recv_cache_offset,
+        runtime.recv_cache.begin() + runtime.recv_cache_size);
   }
   xyzm_notify_transfer_event_async(
       runtime,
@@ -245,6 +249,9 @@ void xyzm_finish_transfer_failure_async(
     std::exception_ptr error) {
   if (runtime.report != NULL) {
     runtime.report->final_result = std::nullopt;
+    runtime.report->unread_bytes.assign(
+        runtime.recv_cache.begin() + runtime.recv_cache_offset,
+        runtime.recv_cache.begin() + runtime.recv_cache_size);
   }
   xyzm_notify_transfer_event_async(
       runtime,
