@@ -3,6 +3,9 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
 
 permissions:
   actions: read
@@ -66,6 +69,7 @@ jobs:
         with:
           languages: c-cpp
           build-mode: manual
+          queries: security-extended
           ram: "4096"
 
       - name: Build and test

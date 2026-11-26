@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
@@ -157,11 +157,19 @@ const runReceiveCase = async (samplePath: string): Promise<void> =>
         const outputPath = join(receiveDir, "input.bin");
 
         writeFileSync(inputPath, patternedBytes(620, 1, 0x96));
-        await runExchange(
-            [samplePath, "recv", receiveDir],
-            [SZ_PATH, "--zmodem", "-b", "-q", "input.bin"],
-            sourceDir);
+        const previousMask = process.umask(0o000);
+        try {
+          await runExchange(
+              [samplePath, "recv", receiveDir],
+              [SZ_PATH, "--zmodem", "-b", "-q", "input.bin"],
+              sourceDir);
+        } finally {
+          process.umask(previousMask);
+        }
         assertFileEquals(inputPath, outputPath);
+        if ((statSync(outputPath).mode & 0o777) !== 0o600) {
+          throw new Error("received file must be readable and writable only by its owner");
+        }
       });
 
 const main = async (argv: string[]): Promise<number> => {

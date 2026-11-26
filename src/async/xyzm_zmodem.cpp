@@ -172,8 +172,8 @@ static inline uint32_t xyzm_zcrc32_update_buffer(
 static inline uint16_t xyzm_zmodem_crc16_entry(uint8_t index) {
   static constexpr auto table = []() {
     std::array<uint16_t, 256> values {};
-    for (uint16_t index = 0u; index < values.size(); ++index) {
-      uint16_t crc = (uint16_t)(index << 8);
+    for (std::size_t entry_index = 0u; entry_index < values.size(); ++entry_index) {
+      uint16_t crc = static_cast<uint16_t>(entry_index << 8);
       for (unsigned bit = 0u; bit < 8u; ++bit) {
         if ((crc & 0x8000u) != 0u) {
           crc = (uint16_t)((crc << 1) ^ 0x1021u);
@@ -181,7 +181,7 @@ static inline uint16_t xyzm_zmodem_crc16_entry(uint8_t index) {
           crc <<= 1;
         }
       }
-      values[index] = crc;
+      values[entry_index] = crc;
     }
     return values;
   }();

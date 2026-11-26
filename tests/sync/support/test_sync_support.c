@@ -14,9 +14,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
-#include <direct.h>
-#include <io.h>
-#include <process.h>
+#include <aclapi.h>
 #else
 #include <errno.h>
 #include <fcntl.h>
@@ -32,6 +30,7 @@
 #endif
 
 #include <errno.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -39,25 +38,39 @@
 #include <sys/stat.h>
 #include <time.h>
 
+static FILE *open_test_output(const char *path, const char *mode) {
+#if defined(_WIN32)
+  /* The new file inherits the private directory's access control list. */
+  FILE *stream = NULL;
+  if (fopen_s(&stream, path, mode) != 0) {
+    return NULL;
+  }
+#else
+  int flags = mode[0] == 'a' ? O_APPEND : O_TRUNC;
+  int fd = open(path, O_WRONLY | O_CREAT | flags, 0600);
+  if (fd < 0) {
+    return NULL;
+  }
+  FILE *stream = fdopen(fd, mode);
+  if (stream == NULL) {
+    close(fd);
+  }
+#endif
+  return stream;
+}
+
 #if defined(_WIN32)
 static void test_win32_debug_log(const char *fmt, ...) {
-  const char *log_path;
-  FILE *stream;
+  const char *enabled = getenv("XYZM_WINE_FOREIGN_CLIENT_LOG");
+  if (enabled == NULL || enabled[0] == '\0') {
+    return;
+  }
+  /* The test runner already redirects stderr to the current case's log. */
   va_list args;
-
-  log_path = getenv("XYZM_WINE_FOREIGN_CLIENT_LOG");
-  if (log_path == NULL || log_path[0] == '\0') {
-    return;
-  }
-  stream = fopen(log_path, "a");
-  if (stream == NULL) {
-    return;
-  }
   va_start(args, fmt);
-  vfprintf(stream, fmt, args);
+  vfprintf(stderr, fmt, args);
   va_end(args);
-  fputc('\n', stream);
-  fclose(stream);
+  fputc('\n', stderr);
 }
 
 static void test_win32_winsock_ensure_started(void) {
@@ -171,11 +184,56 @@ static uint16_t test_win32_bridge_port(void) {
   return (uint16_t)port;
 }
 
-static const char *test_win32_temp_root(void) {
-  const char *value;
+static void test_win32_ensure_results_root(void) {
+  /* Protect the shared workspace and its children from broader inherited grants. */
+  union {
+    TOKEN_USER user;
+    BYTE storage[sizeof(TOKEN_USER) + SECURITY_MAX_SID_SIZE];
+  } token_user;
+  HANDLE token;
+  ASSERT_TRUE(OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token));
+  DWORD length;
+  BOOL have_user = GetTokenInformation(token, TokenUser, &token_user, sizeof(token_user), &length);
+  CloseHandle(token);
+  ASSERT_TRUE(have_user);
 
-  value = getenv("XYZM_WINE_TMP_ROOT");
-  return (value != NULL && value[0] != '\0') ? value : NULL;
+  union {
+    ACL acl;
+    BYTE storage[sizeof(ACL) + sizeof(ACCESS_ALLOWED_ACE) + SECURITY_MAX_SID_SIZE];
+  } access;
+  ASSERT_TRUE(InitializeAcl(&access.acl, sizeof(access), ACL_REVISION));
+  ASSERT_TRUE(AddAccessAllowedAceEx(&access.acl, ACL_REVISION,
+      CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE, FILE_ALL_ACCESS, token_user.user.User.Sid));
+  SECURITY_DESCRIPTOR descriptor;
+  ASSERT_TRUE(InitializeSecurityDescriptor(&descriptor, SECURITY_DESCRIPTOR_REVISION));
+  ASSERT_TRUE(SetSecurityDescriptorOwner(&descriptor, token_user.user.User.Sid, FALSE));
+  ASSERT_TRUE(SetSecurityDescriptorDacl(&descriptor, TRUE, &access.acl, FALSE));
+  ASSERT_TRUE(SetSecurityDescriptorControl(&descriptor, SE_DACL_PROTECTED, SE_DACL_PROTECTED));
+  SECURITY_ATTRIBUTES security = {sizeof(security), &descriptor, FALSE};
+  if (CreateDirectoryA("test_results", &security)) {
+    return;
+  }
+  ASSERT_TRUE(GetLastError() == ERROR_ALREADY_EXISTS);
+
+  /* Older runs may have created this directory with a permissive ACL. */
+  HANDLE root = CreateFileA("test_results", FILE_READ_ATTRIBUTES | READ_CONTROL | WRITE_DAC,
+      FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
+      FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, NULL);
+  ASSERT_TRUE(root != INVALID_HANDLE_VALUE);
+  BY_HANDLE_FILE_INFORMATION info;
+  ASSERT_TRUE(GetFileInformationByHandle(root, &info));
+  ASSERT_TRUE((info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0);
+  ASSERT_TRUE((info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) == 0);
+  PSID owner;
+  PSECURITY_DESCRIPTOR existing;
+  ASSERT_TRUE(GetSecurityInfo(root, SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION,
+      &owner, NULL, NULL, NULL, &existing) == ERROR_SUCCESS);
+  BOOL owned = EqualSid(owner, token_user.user.User.Sid);
+  LocalFree(existing);
+  ASSERT_TRUE(owned);
+  ASSERT_TRUE(SetKernelObjectSecurity(root,
+      DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, &descriptor));
+  CloseHandle(root);
 }
 
 static void format_local_timestamp(
@@ -212,7 +270,7 @@ static void append_test_verdict(
   FILE *stream;
   char finished_at_text[40];
 
-  stream = fopen(log_path, "a");
+  stream = open_test_output(log_path, "a");
   if (stream == NULL) {
     return;
   }
@@ -221,7 +279,7 @@ static void append_test_verdict(
     fprintf(stream, "result: PASS\n");
   } else {
     fprintf(stream, "result: FAIL\n");
-    fprintf(stream, "exit_status: %lu\n", (unsigned long)exit_code);
+    fprintf(stream, "exit_status: %" PRIu32 "\n", (uint32_t)exit_code);
   }
   fprintf(stream, "finished_at: %s\n", finished_at_text);
   fprintf(stream, "duration_ms: %llu\n", (unsigned long long)elapsed_ms);
@@ -253,7 +311,7 @@ static void append_test_verdict(
   FILE *stream;
   char finished_at_text[40];
 
-  stream = fopen(log_path, "a");
+  stream = open_test_output(log_path, "a");
   if (stream == NULL) {
     return;
   }
@@ -299,10 +357,7 @@ void test_create_results_dir(char *path, size_t capacity) {
 #if defined(_WIN32)
   SYSTEMTIME now;
   char stamp[32];
-  int rc;
-
-  rc = _mkdir("test_results");
-  ASSERT_TRUE(rc == 0 || errno == EEXIST);
+  test_win32_ensure_results_root();
   test_get_local_time(&now);
   ASSERT_TRUE(snprintf(
       stamp,
@@ -320,13 +375,23 @@ void test_create_results_dir(char *path, size_t capacity) {
       "test_results/%s_%03u",
       stamp,
       (unsigned)now.wMilliseconds) > 0);
-  ASSERT_TRUE(CreateDirectoryA(path, NULL) != 0);
+  ASSERT_TRUE(CreateDirectoryA(path, NULL));
 #else
   struct timespec ts;
   struct tm tm_value;
   char stamp[32];
 
-  ASSERT_TRUE(mkdir("test_results", 0777) == 0 || errno == EEXIST);
+  if (mkdir("test_results", 0700) != 0) {
+    ASSERT_TRUE(errno == EEXIST);
+    int root = open("test_results", O_RDONLY | O_DIRECTORY | O_NOFOLLOW);
+    ASSERT_TRUE(root >= 0);
+    struct stat info;
+    ASSERT_TRUE(fstat(root, &info) == 0 && info.st_uid == geteuid());
+    if ((info.st_mode & 0077) != 0) {
+      ASSERT_TRUE(fchmod(root, info.st_mode & 0700) == 0);
+    }
+    ASSERT_TRUE(close(root) == 0);
+  }
   ASSERT_TRUE(clock_gettime(CLOCK_REALTIME, &ts) == 0);
   ASSERT_TRUE(localtime_r(&ts.tv_sec, &tm_value) != NULL);
   ASSERT_TRUE(strftime(stamp, sizeof(stamp), "%Y%m%d_%H%M%S", &tm_value) > 0u);
@@ -336,7 +401,7 @@ void test_create_results_dir(char *path, size_t capacity) {
       "test_results/%s_%03ld",
       stamp,
       ts.tv_nsec / 1000000L) > 0);
-  ASSERT_TRUE(mkdir(path, 0777) == 0);
+  ASSERT_TRUE(mkdir(path, 0700) == 0);
 #endif
 }
 
@@ -385,7 +450,7 @@ int test_run_cases(
     started_ms = test_monotonic_now_ms();
     test_get_local_time(&started_wall_at);
     format_local_timestamp(started_wall_at, started_at_text, sizeof(started_at_text));
-    stream = fopen(log_path, "w");
+    stream = open_test_output(log_path, "w");
     ASSERT_TRUE(stream != NULL);
     fprintf(stream, "test_name: %s\n", cases[index].name);
     fprintf(stream, "description: %s\n", cases[index].description);
@@ -462,7 +527,7 @@ int test_run_cases(
     if (pid == 0) {
       int fd;
 
-      fd = open(log_path, O_CREAT | O_TRUNC | O_WRONLY, 0666);
+      fd = open(log_path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
       ASSERT_TRUE(fd >= 0);
       ASSERT_TRUE(dup2(fd, STDOUT_FILENO) >= 0);
       ASSERT_TRUE(dup2(fd, STDERR_FILENO) >= 0);
@@ -1218,7 +1283,7 @@ xyzm_status_t file_sink_begin(
   if ((written_len < 0) || ((size_t)written_len >= sizeof(sink->path))) {
     return XYZM_STATUS_IO_ERROR;
   }
-  sink->stream = fopen(sink->path, "wb");
+  sink->stream = open_test_output(sink->path, "wb");
   if (sink->stream == NULL) {
     return XYZM_STATUS_IO_ERROR;
   }
@@ -1334,7 +1399,7 @@ void remove_tree(const char *path) {
 void write_file(const char *path, const uint8_t *data, size_t len) {
   FILE *stream;
 
-  stream = fopen(path, "wb");
+  stream = open_test_output(path, "wb");
   ASSERT_TRUE(stream != NULL);
   ASSERT_TRUE(fwrite(data, 1, len, stream) == len);
   ASSERT_TRUE(fclose(stream) == 0);
@@ -1409,9 +1474,9 @@ child_process_t spawn_child(char *const argv[], const char *working_directory) {
   }
   cwd_len = working_directory != NULL ? (uint32_t)strlen(working_directory) : 0u;
   test_win32_debug_log(
-      "spawn_child: argc=%lu cwd_len=%lu",
-      (unsigned long)argc,
-      (unsigned long)cwd_len);
+      "spawn_child: argc=%" PRIu32 " cwd_len=%" PRIu32,
+      argc,
+      cwd_len);
   test_win32_send_u32(control_socket, cwd_len);
   test_win32_debug_log("spawn_child: sent cwd_len");
   test_win32_send_u32(control_socket, argc);
@@ -1427,8 +1492,8 @@ child_process_t spawn_child(char *const argv[], const char *working_directory) {
     test_win32_send_u32(control_socket, arg_len);
     test_win32_send_all(control_socket, argv[index], arg_len);
     test_win32_debug_log(
-        "spawn_child: sent argv[%lu]=%s",
-        (unsigned long)index,
+        "spawn_child: sent argv[%" PRIu32 "]=%s",
+        index,
         argv[index]);
   }
   transport_port = (uint16_t)test_win32_recv_u32(control_socket);
@@ -1519,8 +1584,8 @@ void wait_child_ok(child_process_t *child) {
     fail_now(
         __FILE__,
         __LINE__,
-        "child failed: status=%lu stderr=%s",
-        (unsigned long)exit_code,
+        "child failed: status=%" PRIu32 " stderr=%s",
+        exit_code,
         stderr_log);
   }
   free(stderr_log);
@@ -1859,29 +1924,18 @@ size_t count_bytes_pattern(
 
 void make_temp_dir(char *path, size_t capacity, const char *prefix) {
 #if defined(_WIN32)
-  const char *temp_root_override;
-  char temp_root[MAX_PATH];
-  DWORD attempt;
-
-  temp_root_override = test_win32_temp_root();
-  if (temp_root_override != NULL) {
-    ASSERT_TRUE(snprintf(temp_root, sizeof(temp_root), "%s", temp_root_override) > 0);
-  } else {
-    DWORD temp_len;
-
-    temp_len = GetTempPathA((DWORD)sizeof(temp_root), temp_root);
-    ASSERT_TRUE(temp_len > 0u && temp_len < sizeof(temp_root));
-  }
-  for (attempt = 0u; attempt < 128u; ++attempt) {
-    ASSERT_TRUE(snprintf(
+  /* Wine and the host bridge share a working directory for this test run. */
+  test_win32_ensure_results_root();
+  for (DWORD attempt = 0u; attempt < 128u; ++attempt) {
+    int written_len = snprintf(
         path,
         capacity,
-        "%s%s-%lu-%lu",
-        temp_root,
+        "test_results/%s-%" PRIu32 "-%" PRIu32,
         prefix,
-        (unsigned long)GetCurrentProcessId(),
-        (unsigned long)(GetTickCount() + attempt)) > 0);
-    if (CreateDirectoryA(path, NULL) != 0) {
+        (uint32_t)GetCurrentProcessId(),
+        (uint32_t)(GetTickCount() + attempt));
+    ASSERT_TRUE(written_len > 0 && (size_t)written_len < capacity);
+    if (CreateDirectoryA(path, NULL)) {
       return;
     }
     ASSERT_TRUE(GetLastError() == ERROR_ALREADY_EXISTS);

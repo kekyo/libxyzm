@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn, type ChildProcess } from "node:child_process";
-import { createWriteStream, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import net, { type Server, type Socket } from "node:net";
 import { once } from "node:events";
 
@@ -13,15 +13,12 @@ type SocketReader = {
 const BRIDGE_MAGIC = Buffer.from("SPWN", "ascii");
 
 const bridgeLog = (message: string): void => {
-  const logPath = process.env.XYZM_WINE_FOREIGN_BRIDGE_LOG;
+  const enabled = process.env.XYZM_WINE_FOREIGN_BRIDGE_LOG;
 
-  if (logPath === undefined || logPath === "") {
+  if (enabled === undefined || enabled === "") {
     return;
   }
-  const stream = createWriteStream(logPath, { flags: "a", encoding: "utf8" });
-
-  stream.write(`${message}\n`);
-  stream.end();
+  process.stderr.write(`${message}\n`);
 };
 
 const createSocketReader = (socket: Socket): SocketReader => ({
@@ -259,7 +256,7 @@ const main = async (argv: string[]): Promise<number> => {
   await once(server, "listening");
   const port = (server.address() as net.AddressInfo).port;
 
-  writeFileSync(portFile, `${port}\n`, "utf8");
+  writeFileSync(portFile, `${port}\n`, { mode: 0o600 });
   bridgeLog(`main: listening port=${port}`);
 
   for (;;) {

@@ -51,7 +51,7 @@ and use it.
 
 - `include/libxyzm/`: public headers owned by libxyzm
 - `src/`: protocol core and synchronous API implementation
-- `deps/cardio/`: cardio 1.0.0 submodule used by the asynchronous API
+- `deps/cardio/`: cardio 1.5.0 submodule used by the asynchronous API
 - `tests/`: unit tests and integration tests for the library
 - `samples/`: standalone synchronous sample programs and sample-only POSIX glue
 
@@ -931,3 +931,28 @@ subset.
 ## License
 
 MIT License.
+
+---
+
+## History
+
+* 1.2.0
+  * The POSIX sample receivers now create output files with owner-only
+    permissions (`0600`).
+  * Extended CodeQL scans now run weekly and can also be started manually.
+* 1.1.0
+  * Asynchronous transfers now return unconsumed transport bytes in
+    `xyzm_async_transfer_report_t::unread_bytes` on success, failure, or
+    cancellation. Applications can process these bytes before reading from
+    the same connection again.
+  * Added `LIBXYZM_BUILD_JOBS` to control how many jobs `build.sh` runs in
+    parallel when building and testing.
+  * Added GitHub Actions builds and interoperability tests for Linux and
+    Windows, along with CodeQL analysis.
+* 1.0.0
+  * Updated cardio from 0.2.0 to 1.0.0 for the asynchronous API. Timeout
+    cancellation sources can now safely outlive their dispatcher.
+    [Upstream fix](https://github.com/kekyo/cardio/commit/d787f9d149df14bac8110ada98a0e72eb4525cc9)
+* 0.1.0
+  * Initial release with synchronous C and asynchronous C++20 APIs for
+    sending and receiving files over XMODEM, YMODEM, and ZMODEM.
