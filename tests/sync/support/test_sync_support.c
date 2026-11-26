@@ -41,7 +41,7 @@
 static FILE *open_test_output(const char *path, const char *mode) {
 #if defined(_WIN32)
   /* The new file inherits the private directory's access control list. */
-  FILE *stream;
+  FILE *stream = NULL;
   if (fopen_s(&stream, path, mode) != 0) {
     return NULL;
   }
