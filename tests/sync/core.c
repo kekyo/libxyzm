@@ -11,6 +11,10 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+static void write_test_fixture(void) {
+  write_file("fixture.bin", (const uint8_t *)"data", 4u);
+}
+
 static void test_private_sync_test_outputs(void) {
   char workspace[256];
   make_temp_dir(workspace, sizeof(workspace), "libxyzm-permissions");
@@ -24,7 +28,14 @@ static void test_private_sync_test_outputs(void) {
   struct stat info;
   ASSERT_TRUE(stat("test_results", &info) == 0 && (info.st_mode & 0777) == 0700);
   ASSERT_TRUE(stat(results_dir, &info) == 0 && (info.st_mode & 0777) == 0700);
-  write_file("fixture.bin", (const uint8_t *)"data", 4u);
+  const test_case_t fixture_case = TEST_CASE(write_test_fixture, "Write a transfer fixture.");
+  unsigned passed = 0;
+  unsigned failed = 0;
+  ASSERT_TRUE(test_run_cases(results_dir, &fixture_case, 1u, &passed, &failed) == 0);
+  char log_path[512];
+  int length = snprintf(log_path, sizeof(log_path), "%s/%s.txt", results_dir, fixture_case.name);
+  ASSERT_TRUE(length > 0 && (size_t)length < sizeof(log_path));
+  ASSERT_TRUE(stat(log_path, &info) == 0 && (info.st_mode & 0777) == 0600);
   ASSERT_TRUE(stat("fixture.bin", &info) == 0 && (info.st_mode & 0777) == 0600);
 
   umask(original_mask);
