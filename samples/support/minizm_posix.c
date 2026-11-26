@@ -493,7 +493,7 @@ static xyzm_status_t minizm_posix_file_sink_begin(
     return XYZM_STATUS_UNSUPPORTED;
   }
 
-  state->fd = open(state->path, O_CREAT | O_TRUNC | O_WRONLY, 0666);
+  state->fd = open(state->path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
   if (state->fd < 0) {
     return XYZM_STATUS_IO_ERROR;
   }

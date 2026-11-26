@@ -6,6 +6,44 @@
 
 #include "support/test_sync_support.h"
 
+#if !defined(_WIN32)
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+static void write_test_fixture(void) {
+  write_file("fixture.bin", (const uint8_t *)"data", 4u);
+}
+
+static void test_private_sync_test_outputs(void) {
+  char workspace[256];
+  make_temp_dir(workspace, sizeof(workspace), "libxyzm-permissions");
+  int original_dir = open(".", O_RDONLY | O_DIRECTORY);
+  ASSERT_TRUE(original_dir >= 0 && chdir(workspace) == 0);
+
+  mode_t original_mask = umask(0);
+  ASSERT_TRUE(mkdir("test_results", 0770) == 0);
+  char results_dir[256];
+  test_create_results_dir(results_dir, sizeof(results_dir));
+  struct stat info;
+  ASSERT_TRUE(stat("test_results", &info) == 0 && (info.st_mode & 0777) == 0700);
+  ASSERT_TRUE(stat(results_dir, &info) == 0 && (info.st_mode & 0777) == 0700);
+  const test_case_t fixture_case = TEST_CASE(write_test_fixture, "Write a transfer fixture.");
+  unsigned passed = 0;
+  unsigned failed = 0;
+  ASSERT_TRUE(test_run_cases(results_dir, &fixture_case, 1u, &passed, &failed) == 0);
+  char log_path[512];
+  int length = snprintf(log_path, sizeof(log_path), "%s/%s.txt", results_dir, fixture_case.name);
+  ASSERT_TRUE(length > 0 && (size_t)length < sizeof(log_path));
+  ASSERT_TRUE(stat(log_path, &info) == 0 && (info.st_mode & 0777) == 0600);
+  ASSERT_TRUE(stat("fixture.bin", &info) == 0 && (info.st_mode & 0777) == 0600);
+
+  umask(original_mask);
+  ASSERT_TRUE(fchdir(original_dir) == 0 && close(original_dir) == 0);
+  remove_tree(workspace);
+}
+#endif
+
 static xyzm_status_t failing_source_end(
     void *opaque,
     void *file_opaque,
@@ -400,6 +438,9 @@ static void test_report_null_and_completion_callback_failure_sync_unit(void) {
 }
 
 const test_case_t xyzm_core_tests[] = {
+#if !defined(_WIN32)
+  TEST_CASE(test_private_sync_test_outputs, "Test outputs stay private when reusing a results directory."),
+#endif
   TEST_CASE(test_crc_helpers, "CRC helper outputs match known vectors."),
   TEST_CASE(test_protocol_send_speed_sync_unit, "Synchronous protocol send speeds stay within deterministic expected bands."),
   TEST_CASE(test_api_argument_validation_unit, "Synchronous public entry points reject incomplete requests with argument errors."),

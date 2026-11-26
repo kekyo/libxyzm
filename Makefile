@@ -117,7 +117,6 @@ endif
 OBJ_DIR := $(BUILD_DIR)/obj
 LIBXYZM_TEST_DIR := $(BUILD_DIR)/tests
 WINE_BRIDGE_SCRIPT := tests/common/wine_foreign_bridge.ts
-WINE_BRIDGE_PORT_FILE := $(BUILD_DIR)/wine-bridge-port
 
 LIBXYZM_STATIC := $(BUILD_DIR)/libxyzm.a
 LIBXYZM_ASYNC_STATIC := $(BUILD_DIR)/libxyzm_async.a
@@ -234,16 +233,20 @@ test: $(LIBXYZM_STATIC) $(LIBXYZM_SHARED) $(LIBXYZM_ASYNC_STATIC) $(LIBXYZM_ASYN
 	./$(TRANSPORT_SYNC_SAMPLE_TEST)
 else
 test: $(LIBXYZM_STATIC) $(LIBXYZM_SHARED) $(LIBXYZM_ASYNC_STATIC) $(LIBXYZM_ASYNC_SHARED) $(HEADER_SMOKE) $(HEADER_SMOKE_ASYNC) $(LIBXYZM_SYNC_TEST_MAIN) $(LIBXYZM_ASYNC_TEST_MAIN) $(WINE_PREFIX_STAMP)
-	rm -f $(WINE_BRIDGE_PORT_FILE)
-	$(NODE) $(WINE_BRIDGE_SCRIPT) $(WINE_BRIDGE_PORT_FILE) & \
+	set -e; umask 077; \
+	workspace=$$(mktemp -d "$(abspath $(BUILD_DIR))/test-run-XXXXXXXX"); \
+	echo "Wine test workspace: $$workspace"; \
+	cd "$$workspace"; \
+	$(NODE) "$(abspath $(WINE_BRIDGE_SCRIPT))" wine-bridge-port & \
 	bridge_pid=$$!; \
 	trap 'kill $$bridge_pid 2>/dev/null || true; wait $$bridge_pid 2>/dev/null || true' EXIT INT TERM; \
-	while [ ! -s $(WINE_BRIDGE_PORT_FILE) ]; do sleep 0.1; done; \
-	bridge_port=$$(cat $(WINE_BRIDGE_PORT_FILE)); \
-	XYZM_WINE_FOREIGN_BRIDGE_PORT=$$bridge_port XYZM_WINE_TMP_ROOT='Z:/tmp/' $(WINE_ENV) $(WINE) ./$(HEADER_SMOKE); \
-	XYZM_WINE_FOREIGN_BRIDGE_PORT=$$bridge_port XYZM_WINE_TMP_ROOT='Z:/tmp/' $(WINE_ENV) $(WINE) ./$(LIBXYZM_SYNC_TEST_MAIN); \
-	XYZM_WINE_FOREIGN_BRIDGE_PORT=$$bridge_port XYZM_WINE_TMP_ROOT='Z:/tmp/' $(WINE_ENV) $(WINE) ./$(HEADER_SMOKE_ASYNC); \
-	XYZM_WINE_FOREIGN_BRIDGE_PORT=$$bridge_port XYZM_WINE_TMP_ROOT='Z:/tmp/' $(WINE_ENV) $(WINE) ./$(LIBXYZM_ASYNC_TEST_MAIN)
+	while [ ! -s wine-bridge-port ]; do kill -0 $$bridge_pid; sleep 0.1; done; \
+	read -r XYZM_WINE_FOREIGN_BRIDGE_PORT < wine-bridge-port; \
+	export XYZM_WINE_FOREIGN_BRIDGE_PORT; \
+	$(WINE_ENV) $(WINE) "$(abspath $(HEADER_SMOKE))"; \
+	$(WINE_ENV) $(WINE) "$(abspath $(LIBXYZM_SYNC_TEST_MAIN))"; \
+	$(WINE_ENV) $(WINE) "$(abspath $(HEADER_SMOKE_ASYNC))"; \
+	$(WINE_ENV) $(WINE) "$(abspath $(LIBXYZM_ASYNC_TEST_MAIN))"
 	$(NODE) tests/check_test_coupling.cjs
 	$(NODE) tests/check_link_scope.cjs ./$(LIBXYZM_SYNC_TEST_MAIN) sync-tests
 	$(NODE) tests/check_link_scope.cjs ./$(LIBXYZM_ASYNC_TEST_MAIN) async-tests
